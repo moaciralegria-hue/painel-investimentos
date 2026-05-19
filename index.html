@@ -553,6 +553,7 @@
       <h1>Painel de Investimentos</h1>
       <div class="header-actions">
         <span class="last-update" id="lastUpdate"></span>
+        <button class="btn btn-sm" id="btnToggleValues" title="Ocultar/mostrar valores">&#128065;</button>
         <button class="btn btn-sm" id="btnConfig" title="Configuracoes">&#9881;</button>
       </div>
     </header>
@@ -794,13 +795,78 @@
         const maxId = INVESTMENT_DATA.investments.reduce((m, i) => Math.max(m, parseInt(i.id) || 0), 0);
         newInvestments.forEach((inv, idx) => {
           inv.id = String(maxId + idx + 1);
-          if (!inv.snapshots || !inv.snapshots.length) {
-            const now = new Date().toISOString().slice(0, 7);
-            inv.snapshots = [{ date: now, value: inv.currentValue }];
+          const reportDate = inv.reportDate || new Date().toISOString().slice(0, 7);
+          const deposit = inv.depositAmount || 0;
+
+          if (!inv.investedAmount) {
+            inv.investedAmount = inv.currentValue;
           }
+          if (!inv.deposits) {
+            inv.deposits = [{ date: reportDate, amount: inv.investedAmount }];
+          }
+          if (!inv.snapshots || !inv.snapshots.length) {
+            inv.snapshots = [{ date: reportDate, value: inv.currentValue }];
+          }
+          delete inv.depositAmount;
+          delete inv.reportDate;
           INVESTMENT_DATA.investments.push(inv);
         });
         this.save();
+      },
+
+      mergeReport(newInvestments) {
+        let added = 0, updated = 0;
+        const baseDate = APP.BASE_DATE;
+
+        newInvestments.forEach(inv => {
+          const reportDate = inv.reportDate || new Date().toISOString().slice(0, 7);
+          const deposit = inv.depositAmount || 0;
+          const nameLower = (inv.name || '').toLowerCase().trim();
+          const instLower = (inv.institution || '').toLowerCase().trim();
+
+          const existing = INVESTMENT_DATA.investments.find(e =>
+            e.name.toLowerCase().trim() === nameLower &&
+            e.institution.toLowerCase().trim() === instLower
+          );
+
+          if (existing) {
+            existing.currentValue = inv.currentValue;
+            const alreadyHasSnap = existing.snapshots.some(s => s.date === reportDate);
+            if (!alreadyHasSnap) {
+              existing.snapshots.push({ date: reportDate, value: inv.currentValue });
+              existing.snapshots.sort((a, b) => a.date.localeCompare(b.date));
+            }
+            if (deposit > 0) {
+              if (!existing.deposits) existing.deposits = [];
+              existing.deposits.push({ date: reportDate, amount: deposit });
+              existing.investedAmount += deposit;
+            }
+            updated++;
+          } else {
+            const isBase = reportDate <= baseDate;
+            const investedAmount = isBase ? inv.currentValue : (deposit || inv.currentValue);
+
+            const newInv = {
+              id: String(INVESTMENT_DATA.investments.reduce((m, i) => Math.max(m, parseInt(i.id) || 0), 0) + 1),
+              name: inv.name,
+              institution: inv.institution,
+              country: inv.country || 'Brasil',
+              currency: inv.currency || 'BRL',
+              assetType: inv.assetType || 'Fundo',
+              purchaseDate: inv.purchaseDate || reportDate + '-01',
+              maturityDate: inv.maturityDate || null,
+              investedAmount: investedAmount,
+              currentValue: inv.currentValue,
+              deposits: [{ date: reportDate, amount: investedAmount }],
+              snapshots: [{ date: reportDate, value: inv.currentValue }]
+            };
+            INVESTMENT_DATA.investments.push(newInv);
+            added++;
+          }
+        });
+
+        this.save();
+        return { added, updated };
       },
 
       removeInvestment(id) {
@@ -861,7 +927,7 @@
 
         const base64 = await this.fileToBase64(file);
 
-        const prompt = `Analise este extrato/relatorio financeiro e extraia todos os investimentos encontrados.
+        const prompt = `Analise este extrato/relatorio financeiro MENSAL e extraia todos os investimentos encontrados.
 
 Para cada investimento, retorne EXATAMENTE este formato JSON (array de objetos):
 
@@ -874,19 +940,22 @@ Para cada investimento, retorne EXATAMENTE este formato JSON (array de objetos):
     "assetType": "tipo (Pos-fixado, Pre-fixado, Acao, FII, ETF, Fundo, Tesouro, Cripto)",
     "purchaseDate": "YYYY-MM-DD",
     "maturityDate": "YYYY-MM-DD ou null",
-    "investedAmount": 10000.00,
-    "currentValue": 11250.00
+    "currentValue": 11250.00,
+    "depositAmount": 0.00,
+    "reportDate": "YYYY-MM"
   }
 ]
 
 REGRAS:
 - Retorne APENAS o JSON, sem texto adicional, sem markdown
-- Se nao conseguir identificar algum campo, use um valor razoavel baseado no contexto
+- reportDate: mes/ano de referencia do relatorio no formato YYYY-MM
+- currentValue: saldo/valor atual/posicao do ativo no periodo
+- depositAmount: valor de NOVOS aportes/depositos/aplicacoes feitos NESTE periodo. Se o extrato mostrar movimentacoes de entrada (aplicacao, deposito, transferencia de entrada), some aqui. Se nao houver movimentacao de entrada, use 0
+- NAO inclua o campo investedAmount - ele sera calculado pelo app
 - purchaseDate: se nao encontrar a data exata, use a data do extrato
 - assetType: classifique baseado no nome/descricao do ativo
 - institution: identifique pelo cabecalho/logo do extrato
-- investedAmount: valor aplicado/investido original
-- currentValue: saldo/valor atual/posicao`;
+- Diferencie rendimento de deposito: rendimento e a valorizacao natural do ativo, deposito e dinheiro novo colocado`;
 
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
@@ -940,6 +1009,8 @@ REGRAS:
       sortDir: 'asc',
       pendingImports: [],
       editingId: null,
+      valuesHidden: localStorage.getItem('values-hidden') === '1',
+      BASE_DATE: '2025-10',
 
       COLORS: {
         palette: ['#00d4aa', '#3b82f6', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#ef4444', '#84cc16', '#f97316', '#14b8a6'],
@@ -960,13 +1031,19 @@ REGRAS:
         this.bindTableSort();
         this.bindImport();
         this.bindManage();
+        this.bindToggleValues();
         this.bindConfig();
         this.renderActiveTab();
         this.fetchBenchmarks();
       },
 
-      fmt(val, currency = 'BRL') {
+      fmtRaw(val, currency = 'BRL') {
         return new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(val);
+      },
+
+      fmt(val, currency = 'BRL') {
+        if (this.valuesHidden) return currency === 'USD' ? 'US$ ••••••' : 'R$ ••••••';
+        return this.fmtRaw(val, currency);
       },
 
       fmtPct(val) {
@@ -1358,11 +1435,17 @@ REGRAS:
 
         document.getElementById('btnConfirmImport').addEventListener('click', () => {
           if (this.pendingImports.length) {
-            DataStore.addInvestments(this.pendingImports);
+            const result = DataStore.mergeReport(this.pendingImports);
             this.pendingImports = [];
             this.refreshAll();
             document.getElementById('importStatus').classList.remove('visible');
-            document.querySelector('[data-tab="overview"]').click();
+            const titleEl = document.getElementById('importStatusTitle');
+            document.getElementById('importStatus').classList.add('visible');
+            titleEl.innerHTML = `<span class="positive">${result.added} novo(s), ${result.updated} atualizado(s)</span>`;
+            setTimeout(() => {
+              document.getElementById('importStatus').classList.remove('visible');
+              document.querySelector('[data-tab="overview"]').click();
+            }, 2000);
           }
         });
 
@@ -1398,14 +1481,20 @@ REGRAS:
             this.pendingImports.push(...investments);
 
             investments.forEach(inv => {
+              const existing = INVESTMENT_DATA.investments.find(e =>
+                e.name.toLowerCase().trim() === (inv.name || '').toLowerCase().trim() &&
+                e.institution.toLowerCase().trim() === (inv.institution || '').toLowerCase().trim()
+              );
+              const status = existing ? '<span style="color:var(--blue)">[atualizar]</span>' : '<span style="color:var(--green)">[novo]</span>';
+              const depositInfo = inv.depositAmount > 0 ? ` | Aporte: ${this.fmtRaw(inv.depositAmount, inv.currency)}` : '';
               resultsEl.innerHTML += `
                 <div class="import-item">
                   <div class="import-item-info">
-                    <div class="import-item-name">${inv.name}</div>
-                    <div class="import-item-detail">${inv.institution} | ${inv.assetType} | ${inv.currency}</div>
+                    <div class="import-item-name">${status} ${inv.name}</div>
+                    <div class="import-item-detail">${inv.institution} | ${inv.assetType} | ${inv.reportDate || ''}${depositInfo}</div>
                   </div>
                   <div>
-                    <span style="font-weight:600">${this.fmt(inv.currentValue, inv.currency)}</span>
+                    <span style="font-weight:600">${this.fmtRaw(inv.currentValue, inv.currency)}</span>
                   </div>
                 </div>
               `;
@@ -1540,6 +1629,22 @@ REGRAS:
         this.renderLastUpdate();
         this.renderSummaryCards();
         this.renderActiveTab();
+      },
+
+      // --- Toggle Values ---
+      bindToggleValues() {
+        const btn = document.getElementById('btnToggleValues');
+        this.updateToggleBtn();
+        btn.addEventListener('click', () => {
+          this.valuesHidden = !this.valuesHidden;
+          localStorage.setItem('values-hidden', this.valuesHidden ? '1' : '0');
+          this.updateToggleBtn();
+          this.refreshAll();
+        });
+      },
+
+      updateToggleBtn() {
+        document.getElementById('btnToggleValues').innerHTML = this.valuesHidden ? '&#128064;' : '&#128065;';
       },
 
       // --- Config ---
