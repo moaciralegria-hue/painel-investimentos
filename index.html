@@ -1,0 +1,1574 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Painel de Investimentos</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0f1117">
+
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Investimentos">
+  <link rel="apple-touch-icon" href="icon.svg">
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="data.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #0f1117;
+      --bg-secondary: #1a1d29;
+      --bg-tertiary: #232738;
+      --border: #2a2d3a;
+      --text-primary: #e8e9ed;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+      --green: #00d4aa;
+      --green-bg: rgba(0, 212, 170, 0.1);
+      --red: #ff4757;
+      --red-bg: rgba(255, 71, 87, 0.1);
+      --blue: #3b82f6;
+      --purple: #8b5cf6;
+      --orange: #f59e0b;
+      --cyan: #06b6d4;
+      --pink: #ec4899;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      min-height: 100vh;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+    }
+
+    .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+
+    .install-banner {
+      display: none;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .install-banner.visible { display: flex; }
+
+    .install-banner-icon { font-size: 28px; flex-shrink: 0; }
+
+    .install-banner-text {
+      flex: 1;
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .install-banner-text strong {
+      color: var(--text-primary);
+      display: block;
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+
+    .install-banner-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      flex-shrink: 0;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--green), var(--blue));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .last-update {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover { border-color: var(--green); color: var(--text-primary); }
+
+    .btn-primary {
+      background: var(--green);
+      color: var(--bg-primary);
+      border-color: var(--green);
+      font-weight: 600;
+    }
+
+    .btn-primary:hover { opacity: 0.9; }
+
+    .btn-danger {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    .btn-danger:hover { background: var(--red-bg); }
+
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .card-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .card-value { font-size: 28px; font-weight: 700; }
+
+    .card-sub { font-size: 13px; margin-top: 4px; }
+
+    .positive { color: var(--green); }
+    .negative { color: var(--red); }
+
+    .period-selector {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .period-btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .period-btn:hover { border-color: var(--green); color: var(--text-primary); }
+    .period-btn.active {
+      background: var(--green);
+      color: var(--bg-primary);
+      border-color: var(--green);
+      font-weight: 600;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 24px;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0;
+    }
+
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      padding: 10px 16px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: 500;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover { color: var(--text-primary); }
+    .tab-btn.active { color: var(--green); border-bottom-color: var(--green); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .chart-container {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .chart-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+
+    .chart-wrapper { position: relative; height: 350px; }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 20px;
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+    th {
+      text-align: left;
+      padding: 12px 16px;
+      background: var(--bg-tertiary);
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    th:hover { color: var(--text-primary); }
+    th.sorted-asc::after { content: " \2191"; }
+    th.sorted-desc::after { content: " \2193"; }
+
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    .table-wrapper {
+      overflow-x: auto;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .benchmark-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .benchmark-status .dot {
+      width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+    }
+
+    .dot-green { background: var(--green); }
+    .dot-yellow { background: var(--orange); }
+    .dot-red { background: var(--red); }
+
+    /* --- Import Tab --- */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--bg-secondary);
+      margin-bottom: 20px;
+    }
+
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--green);
+      background: var(--green-bg);
+    }
+
+    .upload-zone-icon { font-size: 48px; margin-bottom: 12px; color: var(--text-muted); }
+    .upload-zone-text { font-size: 14px; color: var(--text-secondary); margin-bottom: 4px; }
+    .upload-zone-hint { font-size: 12px; color: var(--text-muted); }
+
+    .import-status {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .import-status.visible { display: block; }
+
+    .import-status-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .import-results {
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      padding: 16px;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .import-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .import-item:last-child { border-bottom: none; }
+
+    .import-item-info { flex: 1; }
+    .import-item-name { font-weight: 500; }
+    .import-item-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .api-key-section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .api-key-section h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .input-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .input-group input {
+      flex: 1;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+    }
+
+    .input-group input:focus { outline: none; border-color: var(--green); }
+
+    .input-group input::placeholder { color: var(--text-muted); }
+
+    .api-key-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .api-key-hint a { color: var(--blue); text-decoration: none; }
+    .api-key-hint a:hover { text-decoration: underline; }
+
+    /* --- Modal --- */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-overlay.visible { display: flex; }
+
+    .modal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      max-width: 500px;
+      width: 100%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+
+    .form-group { margin-bottom: 16px; }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 13px;
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--green);
+    }
+
+    .form-group select { cursor: pointer; }
+
+    .form-group select option { background: var(--bg-tertiary); color: var(--text-primary); }
+
+    /* --- Manage list --- */
+    .manage-list { margin-top: 16px; }
+
+    .manage-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      margin-bottom: 8px;
+    }
+
+    .manage-item-info { flex: 1; }
+    .manage-item-name { font-size: 14px; font-weight: 500; }
+    .manage-item-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .manage-actions { display: flex; gap: 6px; }
+
+    .data-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 768px) {
+      .container { padding: 12px; }
+      .card-value { font-size: 22px; }
+      .charts-grid { grid-template-columns: 1fr; }
+      .chart-wrapper { height: 280px; }
+      .header-actions { width: 100%; justify-content: flex-end; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="install-banner" id="installBanner">
+      <span class="install-banner-icon">+</span>
+      <div class="install-banner-text">
+        <strong>Instalar como app</strong>
+        No Safari, toque no botao de compartilhar e depois em "Adicionar a Tela de Inicio"
+      </div>
+      <button class="install-banner-close" id="dismissInstall">&times;</button>
+    </div>
+
+    <header>
+      <h1>Painel de Investimentos</h1>
+      <div class="header-actions">
+        <span class="last-update" id="lastUpdate"></span>
+        <button class="btn btn-sm" id="btnConfig" title="Configuracoes">&#9881;</button>
+      </div>
+    </header>
+
+    <div class="summary-cards" id="summaryCards"></div>
+
+    <div class="period-selector" id="periodSelector">
+      <button class="period-btn" data-months="1">1M</button>
+      <button class="period-btn" data-months="2">2M</button>
+      <button class="period-btn" data-months="3">3M</button>
+      <button class="period-btn" data-months="6">6M</button>
+      <button class="period-btn active" data-months="12">1A</button>
+      <button class="period-btn" data-months="24">2A</button>
+      <button class="period-btn" data-months="60">5A</button>
+      <button class="period-btn" data-months="0">Tudo</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="overview">Visao Geral</button>
+      <button class="tab-btn" data-tab="country">Por Pais</button>
+      <button class="tab-btn" data-tab="currency">Por Moeda</button>
+      <button class="tab-btn" data-tab="institution">Por Instituicao</button>
+      <button class="tab-btn" data-tab="assetType">Por Tipo de Ativo</button>
+      <button class="tab-btn" data-tab="benchmarks">vs Benchmarks</button>
+      <button class="tab-btn" data-tab="allocation">Alocacao</button>
+      <button class="tab-btn" data-tab="details">Detalhes</button>
+      <button class="tab-btn" data-tab="import" style="color:var(--green)">+ Importar</button>
+      <button class="tab-btn" data-tab="manage">Gerenciar</button>
+    </div>
+
+    <div class="tab-content active" id="tab-overview">
+      <div class="chart-container">
+        <div class="chart-title">Evolucao Patrimonial</div>
+        <div class="chart-wrapper"><canvas id="chartOverview"></canvas></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-country">
+      <div class="chart-container">
+        <div class="chart-title">Rentabilidade por Pais</div>
+        <div class="chart-wrapper"><canvas id="chartCountry"></canvas></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-currency">
+      <div class="chart-container">
+        <div class="chart-title">Rentabilidade por Moeda</div>
+        <div class="chart-wrapper"><canvas id="chartCurrency"></canvas></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-institution">
+      <div class="chart-container">
+        <div class="chart-title">Rentabilidade por Instituicao</div>
+        <div class="chart-wrapper"><canvas id="chartInstitution"></canvas></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-assetType">
+      <div class="chart-container">
+        <div class="chart-title">Rentabilidade por Tipo de Ativo</div>
+        <div class="chart-wrapper"><canvas id="chartAssetType"></canvas></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-benchmarks">
+      <div class="benchmark-status" id="benchmarkStatus">
+        <span class="dot dot-yellow"></span> Carregando benchmarks...
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">Carteira vs Benchmarks</div>
+        <div class="chart-wrapper"><canvas id="chartBenchmarks"></canvas></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-allocation">
+      <div class="charts-grid">
+        <div class="chart-container">
+          <div class="chart-title">Alocacao por Tipo de Ativo</div>
+          <div class="chart-wrapper"><canvas id="chartAllocAsset"></canvas></div>
+        </div>
+        <div class="chart-container">
+          <div class="chart-title">Alocacao por Instituicao</div>
+          <div class="chart-wrapper"><canvas id="chartAllocInst"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-details">
+      <div class="table-wrapper">
+        <table id="detailsTable">
+          <thead>
+            <tr>
+              <th data-sort="name">Ativo</th>
+              <th data-sort="institution">Instituicao</th>
+              <th data-sort="assetType">Tipo</th>
+              <th data-sort="country">Pais</th>
+              <th data-sort="currency">Moeda</th>
+              <th data-sort="investedAmount">Investido</th>
+              <th data-sort="currentValue">Atual</th>
+              <th data-sort="return">Retorno %</th>
+              <th data-sort="periodReturn">Retorno Periodo %</th>
+            </tr>
+          </thead>
+          <tbody id="detailsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-import">
+      <div class="api-key-section">
+        <h3>Chave da API Google Gemini</h3>
+        <div class="input-group">
+          <input type="password" id="apiKeyInput" placeholder="Cole sua API key aqui...">
+          <button class="btn" id="btnSaveKey">Salvar</button>
+        </div>
+        <div class="api-key-hint">
+          Obtenha gratuitamente em <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a>.
+          A chave fica salva apenas no seu navegador.
+        </div>
+        <div id="apiKeyStatus" style="font-size:12px;margin-top:8px;"></div>
+      </div>
+
+      <div class="upload-zone" id="uploadZone">
+        <div class="upload-zone-icon">&#128196;</div>
+        <div class="upload-zone-text">Arraste o PDF do extrato aqui ou clique para selecionar</div>
+        <div class="upload-zone-hint">Aceita PDFs de extratos de XP, BTG, Itau, Avenue, Nomad e outros</div>
+        <input type="file" id="fileInput" accept=".pdf" multiple style="display:none">
+      </div>
+
+      <div class="import-status" id="importStatus">
+        <div class="import-status-title" id="importStatusTitle">
+          <div class="spinner"></div> Processando PDF...
+        </div>
+        <div class="import-results" id="importResults"></div>
+        <div style="margin-top:12px;display:none" id="importActions">
+          <button class="btn btn-primary" id="btnConfirmImport">Confirmar e Salvar</button>
+          <button class="btn" id="btnCancelImport">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-manage">
+      <div class="chart-container">
+        <div class="chart-title">Investimentos Cadastrados</div>
+        <div style="margin-bottom:12px">
+          <button class="btn btn-primary" id="btnAddManual">+ Adicionar Manualmente</button>
+        </div>
+        <div id="manageList" class="manage-list"></div>
+        <div class="data-actions">
+          <button class="btn btn-sm" id="btnExportData">Exportar JSON</button>
+          <button class="btn btn-sm" id="btnImportJson">Importar JSON</button>
+          <button class="btn btn-sm btn-danger" id="btnClearData">Limpar Tudo</button>
+          <input type="file" id="jsonFileInput" accept=".json" style="display:none">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Adicionar/Editar -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <h2 id="modalTitle">Adicionar Investimento</h2>
+      <div class="form-group">
+        <label>Nome do Ativo</label>
+        <input type="text" id="fName" placeholder="Ex: CDB 120% CDI, AAPL, HGLG11">
+      </div>
+      <div class="form-group">
+        <label>Instituicao</label>
+        <select id="fInstitution">
+          <option>XP</option><option>BTG</option><option>Itau</option>
+          <option>Avenue</option><option>Nomad</option><option>Outro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Tipo de Ativo</label>
+        <select id="fAssetType">
+          <option>Pos-fixado</option><option>Pre-fixado</option><option>Acao</option>
+          <option>FII</option><option>ETF</option><option>Fundo</option>
+          <option>Tesouro</option><option>Cripto</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Pais</label>
+        <select id="fCountry">
+          <option>Brasil</option><option>EUA</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Moeda</label>
+        <select id="fCurrency">
+          <option>BRL</option><option>USD</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Valor Investido</label>
+        <input type="number" id="fInvested" placeholder="10000" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Valor Atual</label>
+        <input type="number" id="fCurrent" placeholder="11250" step="0.01">
+      </div>
+      <div class="form-group">
+        <label>Data de Compra</label>
+        <input type="date" id="fDate">
+      </div>
+      <div class="modal-actions">
+        <button class="btn" id="btnModalCancel">Cancelar</button>
+        <button class="btn btn-primary" id="btnModalSave">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Data Layer ---
+    const DataStore = {
+      KEY: 'investimentos-data',
+
+      load() {
+        const stored = localStorage.getItem(this.KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          INVESTMENT_DATA.investments = parsed.investments || [];
+          INVESTMENT_DATA.lastUpdate = parsed.lastUpdate || new Date().toISOString().slice(0, 10);
+          if (parsed.ibov) INVESTMENT_DATA.ibov = parsed.ibov;
+        }
+      },
+
+      save() {
+        INVESTMENT_DATA.lastUpdate = new Date().toISOString().slice(0, 10);
+        localStorage.setItem(this.KEY, JSON.stringify({
+          investments: INVESTMENT_DATA.investments,
+          lastUpdate: INVESTMENT_DATA.lastUpdate,
+          ibov: INVESTMENT_DATA.ibov
+        }));
+      },
+
+      addInvestments(newInvestments) {
+        const maxId = INVESTMENT_DATA.investments.reduce((m, i) => Math.max(m, parseInt(i.id) || 0), 0);
+        newInvestments.forEach((inv, idx) => {
+          inv.id = String(maxId + idx + 1);
+          if (!inv.snapshots || !inv.snapshots.length) {
+            const now = new Date().toISOString().slice(0, 7);
+            inv.snapshots = [{ date: now, value: inv.currentValue }];
+          }
+          INVESTMENT_DATA.investments.push(inv);
+        });
+        this.save();
+      },
+
+      removeInvestment(id) {
+        INVESTMENT_DATA.investments = INVESTMENT_DATA.investments.filter(i => i.id !== id);
+        this.save();
+      },
+
+      updateInvestment(id, data) {
+        const inv = INVESTMENT_DATA.investments.find(i => i.id === id);
+        if (inv) Object.assign(inv, data);
+        this.save();
+      },
+
+      clearAll() {
+        INVESTMENT_DATA.investments = [];
+        this.save();
+      },
+
+      exportJSON() {
+        const blob = new Blob([JSON.stringify(INVESTMENT_DATA, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `investimentos-backup-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+
+      importJSON(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const data = JSON.parse(e.target.result);
+              if (data.investments) {
+                INVESTMENT_DATA.investments = data.investments;
+                if (data.ibov) INVESTMENT_DATA.ibov = data.ibov;
+                this.save();
+                resolve(data.investments.length);
+              } else {
+                reject('Formato invalido');
+              }
+            } catch { reject('Erro ao ler JSON'); }
+          };
+          reader.readAsText(file);
+        });
+      }
+    };
+
+    // --- Gemini API ---
+    const GeminiAPI = {
+      getKey() { return localStorage.getItem('gemini-api-key') || ''; },
+      setKey(key) { localStorage.setItem('gemini-api-key', key); },
+
+      async processFile(file) {
+        const key = this.getKey();
+        if (!key) throw new Error('Configure sua API key do Gemini primeiro');
+
+        const base64 = await this.fileToBase64(file);
+
+        const prompt = `Analise este extrato/relatorio financeiro e extraia todos os investimentos encontrados.
+
+Para cada investimento, retorne EXATAMENTE este formato JSON (array de objetos):
+
+[
+  {
+    "name": "nome do ativo (ex: CDB 120% CDI, PETR4, AAPL)",
+    "institution": "instituicao (ex: XP, BTG, Itau, Avenue, Nomad)",
+    "country": "Brasil ou EUA",
+    "currency": "BRL ou USD",
+    "assetType": "tipo (Pos-fixado, Pre-fixado, Acao, FII, ETF, Fundo, Tesouro, Cripto)",
+    "purchaseDate": "YYYY-MM-DD",
+    "maturityDate": "YYYY-MM-DD ou null",
+    "investedAmount": 10000.00,
+    "currentValue": 11250.00
+  }
+]
+
+REGRAS:
+- Retorne APENAS o JSON, sem texto adicional, sem markdown
+- Se nao conseguir identificar algum campo, use um valor razoavel baseado no contexto
+- purchaseDate: se nao encontrar a data exata, use a data do extrato
+- assetType: classifique baseado no nome/descricao do ativo
+- institution: identifique pelo cabecalho/logo do extrato
+- investedAmount: valor aplicado/investido original
+- currentValue: saldo/valor atual/posicao`;
+
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { inline_data: { mime_type: 'application/pdf', data: base64 } },
+                  { text: prompt }
+                ]
+              }]
+            })
+          }
+        );
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error?.message || `Erro ${response.status}`);
+        }
+
+        const result = await response.json();
+        const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        const jsonMatch = text.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+        try {
+          return JSON.parse(jsonMatch);
+        } catch {
+          throw new Error('A IA nao retornou um JSON valido. Tente novamente.');
+        }
+      },
+
+      fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+    };
+
+    // --- Main App ---
+    const APP = {
+      selectedPeriod: 12,
+      activeTab: 'overview',
+      charts: {},
+      benchmarkData: { cdi: null, ipca: null },
+      sortColumn: null,
+      sortDir: 'asc',
+      pendingImports: [],
+      editingId: null,
+
+      COLORS: {
+        palette: ['#00d4aa', '#3b82f6', '#8b5cf6', '#f59e0b', '#06b6d4', '#ec4899', '#ef4444', '#84cc16', '#f97316', '#14b8a6'],
+        green: '#00d4aa',
+        red: '#ff4757',
+        blue: '#3b82f6',
+        purple: '#8b5cf6',
+        orange: '#f59e0b',
+        cyan: '#06b6d4'
+      },
+
+      init() {
+        DataStore.load();
+        this.renderLastUpdate();
+        this.renderSummaryCards();
+        this.bindPeriodSelector();
+        this.bindTabs();
+        this.bindTableSort();
+        this.bindImport();
+        this.bindManage();
+        this.bindConfig();
+        this.renderActiveTab();
+        this.fetchBenchmarks();
+      },
+
+      fmt(val, currency = 'BRL') {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency }).format(val);
+      },
+
+      fmtPct(val) {
+        const sign = val >= 0 ? '+' : '';
+        return sign + val.toFixed(2) + '%';
+      },
+
+      getDateNMonthsAgo(n) {
+        const d = new Date();
+        d.setMonth(d.getMonth() - n);
+        return d.toISOString().slice(0, 7);
+      },
+
+      filterSnapshots(snapshots, months) {
+        if (months === 0) return snapshots;
+        const cutoff = this.getDateNMonthsAgo(months);
+        return snapshots.filter(s => s.date >= cutoff);
+      },
+
+      calcReturn(snapshots) {
+        if (snapshots.length < 2) return 0;
+        const first = snapshots[0].value;
+        const last = snapshots[snapshots.length - 1].value;
+        return ((last - first) / first) * 100;
+      },
+
+      getPortfolioSnapshots(investments, months) {
+        const allDates = new Set();
+        investments.forEach(inv => {
+          const snaps = this.filterSnapshots(inv.snapshots, months);
+          snaps.forEach(s => allDates.add(s.date));
+        });
+        const dates = [...allDates].sort();
+        return dates.map(date => {
+          let total = 0;
+          investments.forEach(inv => {
+            const snap = inv.snapshots.find(s => s.date === date);
+            if (snap) total += snap.value;
+            else {
+              const earlier = inv.snapshots.filter(s => s.date <= date);
+              if (earlier.length) total += earlier[earlier.length - 1].value;
+            }
+          });
+          return { date, value: total };
+        });
+      },
+
+      groupBy(key, months) {
+        const groups = {};
+        INVESTMENT_DATA.investments.forEach(inv => {
+          const k = inv[key];
+          if (!groups[k]) groups[k] = [];
+          groups[k].push(inv);
+        });
+        const result = {};
+        for (const [k, invs] of Object.entries(groups)) {
+          const snaps = this.getPortfolioSnapshots(invs, months);
+          result[k] = {
+            return: this.calcReturn(snaps),
+            currentValue: invs.reduce((s, i) => s + i.currentValue, 0),
+            investedAmount: invs.reduce((s, i) => s + i.investedAmount, 0),
+            snapshots: snaps
+          };
+        }
+        return result;
+      },
+
+      getAllDatesInPeriod(months) {
+        const allDates = new Set();
+        INVESTMENT_DATA.investments.forEach(inv => {
+          this.filterSnapshots(inv.snapshots, months).forEach(s => allDates.add(s.date));
+        });
+        return [...allDates].sort();
+      },
+
+      renderSummaryCards() {
+        const inv = INVESTMENT_DATA.investments;
+        if (!inv.length) {
+          document.getElementById('summaryCards').innerHTML = `
+            <div class="card" style="grid-column:1/-1;text-align:center;padding:40px">
+              <div class="card-label">Nenhum investimento cadastrado</div>
+              <div style="color:var(--text-muted);font-size:14px;margin-top:8px">
+                Use a aba <strong style="color:var(--green)">+ Importar</strong> para adicionar seus investimentos via PDF
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        const totalInvested = inv.reduce((s, i) => s + i.investedAmount, 0);
+        const totalCurrent = inv.reduce((s, i) => s + i.currentValue, 0);
+        const totalReturn = totalCurrent - totalInvested;
+        const totalReturnPct = (totalReturn / totalInvested) * 100;
+
+        const portfolioSnaps = this.getPortfolioSnapshots(inv, this.selectedPeriod);
+        const periodReturn = this.calcReturn(portfolioSnaps);
+
+        const cards = [
+          { label: 'Total Investido', value: this.fmt(totalInvested), sub: `${inv.length} ativos` },
+          { label: 'Valor Atual', value: this.fmt(totalCurrent), sub: this.fmtPct(totalReturnPct), positive: totalReturn >= 0 },
+          { label: 'Retorno Total', value: this.fmt(totalReturn), sub: this.fmtPct(totalReturnPct), positive: totalReturn >= 0 },
+          { label: 'Retorno no Periodo', value: this.fmtPct(periodReturn), positive: periodReturn >= 0 }
+        ];
+
+        document.getElementById('summaryCards').innerHTML = cards.map(c => `
+          <div class="card">
+            <div class="card-label">${c.label}</div>
+            <div class="card-value ${c.positive !== undefined ? (c.positive ? 'positive' : 'negative') : ''}">${c.value}</div>
+            ${c.sub ? `<div class="card-sub ${c.positive !== undefined ? (c.positive ? 'positive' : 'negative') : ''}">${c.sub}</div>` : ''}
+          </div>
+        `).join('');
+      },
+
+      renderLastUpdate() {
+        const d = INVESTMENT_DATA.lastUpdate.split('-');
+        document.getElementById('lastUpdate').textContent = `${d[2]}/${d[1]}/${d[0]}`;
+      },
+
+      bindPeriodSelector() {
+        document.querySelectorAll('.period-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            this.selectedPeriod = parseInt(btn.dataset.months);
+            this.renderSummaryCards();
+            this.renderActiveTab();
+          });
+        });
+      },
+
+      bindTabs() {
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            this.activeTab = btn.dataset.tab;
+            document.getElementById('tab-' + this.activeTab).classList.add('active');
+            this.renderActiveTab();
+          });
+        });
+      },
+
+      renderActiveTab() {
+        const m = this.selectedPeriod;
+        switch (this.activeTab) {
+          case 'overview': this.renderOverview(m); break;
+          case 'country': this.renderGroupChart('chartCountry', 'country', m); break;
+          case 'currency': this.renderGroupChart('chartCurrency', 'currency', m); break;
+          case 'institution': this.renderGroupChart('chartInstitution', 'institution', m); break;
+          case 'assetType': this.renderGroupChart('chartAssetType', 'assetType', m); break;
+          case 'benchmarks': this.renderBenchmarks(m); break;
+          case 'allocation': this.renderAllocation(); break;
+          case 'details': this.renderDetails(m); break;
+          case 'import': this.renderImportTab(); break;
+          case 'manage': this.renderManageTab(); break;
+        }
+      },
+
+      destroyChart(id) {
+        if (this.charts[id]) { this.charts[id].destroy(); delete this.charts[id]; }
+      },
+
+      chartDefaults() {
+        return {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: '#9ca3af', font: { family: 'Inter', size: 12 } } },
+            tooltip: {
+              backgroundColor: '#232738',
+              titleColor: '#e8e9ed',
+              bodyColor: '#9ca3af',
+              borderColor: '#2a2d3a',
+              borderWidth: 1,
+              padding: 12,
+              titleFont: { family: 'Inter', weight: '600' },
+              bodyFont: { family: 'Inter' }
+            }
+          },
+          scales: {
+            x: { ticks: { color: '#6b7280', font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(42,45,58,0.5)' } },
+            y: { ticks: { color: '#6b7280', font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(42,45,58,0.5)' } }
+          }
+        };
+      },
+
+      renderOverview(months) {
+        this.destroyChart('chartOverview');
+        const snaps = this.getPortfolioSnapshots(INVESTMENT_DATA.investments, months);
+        if (!snaps.length) return;
+        const labels = snaps.map(s => { const [y, m] = s.date.split('-'); return `${m}/${y.slice(2)}`; });
+        const ctx = document.getElementById('chartOverview').getContext('2d');
+        const defaults = this.chartDefaults();
+        defaults.plugins.legend.display = false;
+        this.charts.chartOverview = new Chart(ctx, {
+          type: 'line',
+          data: { labels, datasets: [{ data: snaps.map(s => s.value), borderColor: this.COLORS.green, backgroundColor: 'rgba(0,212,170,0.1)', fill: true, tension: 0.3, pointRadius: 2, pointHoverRadius: 5, borderWidth: 2 }] },
+          options: { ...defaults, scales: { ...defaults.scales, y: { ...defaults.scales.y, ticks: { ...defaults.scales.y.ticks, callback: v => 'R$ ' + (v / 1000).toFixed(0) + 'k' } } } }
+        });
+      },
+
+      renderGroupChart(chartId, groupKey, months) {
+        this.destroyChart(chartId);
+        if (!INVESTMENT_DATA.investments.length) return;
+        const groups = this.groupBy(groupKey, months);
+        const labels = Object.keys(groups);
+        const returns = labels.map(l => groups[l].return);
+        const colors = returns.map(r => r >= 0 ? this.COLORS.green : this.COLORS.red);
+        const ctx = document.getElementById(chartId).getContext('2d');
+        const defaults = this.chartDefaults();
+        defaults.plugins.legend.display = false;
+        this.charts[chartId] = new Chart(ctx, {
+          type: 'bar',
+          data: { labels, datasets: [{ data: returns, backgroundColor: colors.map(c => c + '33'), borderColor: colors, borderWidth: 2, borderRadius: 6 }] },
+          options: { ...defaults, scales: { ...defaults.scales, y: { ...defaults.scales.y, ticks: { ...defaults.scales.y.ticks, callback: v => v.toFixed(1) + '%' } } },
+            plugins: { ...defaults.plugins, tooltip: { ...defaults.plugins.tooltip, callbacks: { label: ctx => { const g = groups[labels[ctx.dataIndex]]; return [`Retorno: ${this.fmtPct(ctx.raw)}`, `Investido: ${this.fmt(g.investedAmount)}`, `Atual: ${this.fmt(g.currentValue)}`]; } } } } }
+        });
+      },
+
+      async fetchBenchmarks() {
+        const statusEl = document.getElementById('benchmarkStatus');
+        try {
+          const [cdiRes, ipcaRes] = await Promise.all([
+            fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.4392/dados?formato=json'),
+            fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json')
+          ]);
+          if (cdiRes.ok) this.benchmarkData.cdi = this.processCDI(await cdiRes.json());
+          if (ipcaRes.ok) this.benchmarkData.ipca = this.processIPCA(await ipcaRes.json());
+          const loaded = (this.benchmarkData.cdi ? 1 : 0) + (this.benchmarkData.ipca ? 1 : 0);
+          statusEl.innerHTML = loaded === 2
+            ? '<span class="dot dot-green"></span> Benchmarks carregados (CDI, IPCA)'
+            : `<span class="dot dot-yellow"></span> ${loaded}/2 benchmarks carregados`;
+          if (this.activeTab === 'benchmarks') this.renderBenchmarks(this.selectedPeriod);
+        } catch {
+          statusEl.innerHTML = '<span class="dot dot-red"></span> Erro ao carregar benchmarks.';
+        }
+      },
+
+      processCDI(raw) {
+        const entries = raw.map(entry => {
+          const [d, m, y] = entry.data.split('/');
+          return { date: `${y}-${m}`, monthlyFactor: Math.pow(1 + parseFloat(entry.valor) / 100, 1 / 12) };
+        }).sort((a, b) => a.date.localeCompare(b.date));
+        let accumulated = 1;
+        return entries.map(e => { accumulated *= e.monthlyFactor; return { date: e.date, accumulated, monthlyReturn: (e.monthlyFactor - 1) * 100 }; });
+      },
+
+      processIPCA(raw) {
+        const monthly = {};
+        raw.forEach(entry => { const [d, m, y] = entry.data.split('/'); monthly[`${y}-${m}`] = parseFloat(entry.valor); });
+        const sorted = Object.entries(monthly).sort(([a], [b]) => a.localeCompare(b));
+        let accumulated = 1;
+        return sorted.map(([date, rate]) => { accumulated *= (1 + rate / 100); return { date, accumulated, monthlyReturn: rate }; });
+      },
+
+      getBenchmarkReturn(benchData, startDate, endDate) {
+        if (!benchData?.length) return null;
+        const start = benchData.find(d => d.date >= startDate);
+        const endPoints = benchData.filter(d => d.date <= endDate);
+        const end = endPoints.length ? endPoints[endPoints.length - 1] : null;
+        if (!start || !end) return null;
+        const startIdx = benchData.indexOf(start);
+        const startAcc = startIdx > 0 ? benchData[startIdx - 1].accumulated : 1;
+        return ((end.accumulated / startAcc) - 1) * 100;
+      },
+
+      renderBenchmarks(months) {
+        this.destroyChart('chartBenchmarks');
+        const dates = this.getAllDatesInPeriod(months);
+        if (!dates.length) return;
+        const portfolioSnaps = this.getPortfolioSnapshots(INVESTMENT_DATA.investments, months);
+        const basePortfolio = portfolioSnaps[0]?.value || 1;
+        const datasets = [{ label: 'Carteira', data: portfolioSnaps.map(s => ((s.value / basePortfolio) - 1) * 100), borderColor: this.COLORS.green, borderWidth: 2, tension: 0.3, pointRadius: 1, fill: false }];
+
+        if (this.benchmarkData.cdi) {
+          datasets.push({ label: 'CDI', data: dates.map(date => this.getBenchmarkReturn(this.benchmarkData.cdi, dates[0], date)), borderColor: this.COLORS.blue, borderWidth: 2, borderDash: [5, 5], tension: 0.3, pointRadius: 0, fill: false });
+        }
+        if (this.benchmarkData.ipca) {
+          datasets.push({ label: 'IPCA + 0,45%', data: dates.map(date => { const ret = this.getBenchmarkReturn(this.benchmarkData.ipca, dates[0], date); if (ret === null) return null; return ret + (0.45 / 12 * Math.max(1, dates.indexOf(date))); }), borderColor: this.COLORS.orange, borderWidth: 2, borderDash: [3, 3], tension: 0.3, pointRadius: 0, fill: false });
+        }
+        if (INVESTMENT_DATA.ibov) {
+          const ibovFiltered = INVESTMENT_DATA.ibov.filter(d => dates.includes(d.date));
+          if (ibovFiltered.length > 1) {
+            const baseIbov = ibovFiltered[0].value;
+            datasets.push({ label: 'IBOV', data: dates.map(date => { const p = ibovFiltered.find(d => d.date === date); return p ? ((p.value / baseIbov) - 1) * 100 : null; }), borderColor: this.COLORS.purple, borderWidth: 2, borderDash: [8, 4], tension: 0.3, pointRadius: 0, fill: false });
+          }
+        }
+
+        const labels = dates.map(d => { const [y, m] = d.split('-'); return `${m}/${y.slice(2)}`; });
+        const ctx = document.getElementById('chartBenchmarks').getContext('2d');
+        const defaults = this.chartDefaults();
+        this.charts.chartBenchmarks = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { ...defaults, scales: { ...defaults.scales, y: { ...defaults.scales.y, ticks: { ...defaults.scales.y.ticks, callback: v => v.toFixed(1) + '%' } } } } });
+      },
+
+      renderAllocation() {
+        this.destroyChart('chartAllocAsset');
+        this.destroyChart('chartAllocInst');
+        if (!INVESTMENT_DATA.investments.length) return;
+        const byAsset = {}, byInst = {};
+        INVESTMENT_DATA.investments.forEach(inv => {
+          byAsset[inv.assetType] = (byAsset[inv.assetType] || 0) + inv.currentValue;
+          byInst[inv.institution] = (byInst[inv.institution] || 0) + inv.currentValue;
+        });
+        const makeDonut = (canvasId, data) => {
+          const labels = Object.keys(data), values = Object.values(data), total = values.reduce((a, b) => a + b, 0);
+          return new Chart(document.getElementById(canvasId).getContext('2d'), {
+            type: 'doughnut', data: { labels, datasets: [{ data: values, backgroundColor: this.COLORS.palette.slice(0, labels.length).map(c => c + '99'), borderColor: this.COLORS.palette.slice(0, labels.length), borderWidth: 2 }] },
+            options: { responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: {
+              legend: { position: 'bottom', labels: { color: '#9ca3af', font: { family: 'Inter', size: 12 }, padding: 16, generateLabels: chart => chart.data.labels.map((l, i) => ({ text: `${l}: ${((chart.data.datasets[0].data[i] / total) * 100).toFixed(1)}%`, fillStyle: chart.data.datasets[0].backgroundColor[i], strokeStyle: chart.data.datasets[0].borderColor[i], lineWidth: 2, index: i })) } },
+              tooltip: { backgroundColor: '#232738', titleColor: '#e8e9ed', bodyColor: '#9ca3af', callbacks: { label: ctx => `${ctx.label}: ${this.fmt(ctx.raw)} (${((ctx.raw / total) * 100).toFixed(1)}%)` } }
+            } }
+          });
+        };
+        this.charts.chartAllocAsset = makeDonut('chartAllocAsset', byAsset);
+        this.charts.chartAllocInst = makeDonut('chartAllocInst', byInst);
+      },
+
+      renderDetails(months) {
+        if (!INVESTMENT_DATA.investments.length) { document.getElementById('detailsBody').innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:40px">Nenhum investimento cadastrado</td></tr>'; return; }
+        const rows = INVESTMENT_DATA.investments.map(inv => {
+          const totalReturn = ((inv.currentValue - inv.investedAmount) / inv.investedAmount) * 100;
+          const filtered = this.filterSnapshots(inv.snapshots || [], months);
+          const periodReturn = this.calcReturn(filtered);
+          return { ...inv, totalReturn, periodReturn };
+        });
+        if (this.sortColumn) {
+          rows.sort((a, b) => {
+            let va = a[this.sortColumn], vb = b[this.sortColumn];
+            if (this.sortColumn === 'return') { va = a.totalReturn; vb = b.totalReturn; }
+            if (typeof va === 'string') return this.sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            return this.sortDir === 'asc' ? va - vb : vb - va;
+          });
+        }
+        document.getElementById('detailsBody').innerHTML = rows.map(r => `
+          <tr>
+            <td style="font-weight:500">${r.name}</td>
+            <td>${r.institution}</td>
+            <td>${r.assetType}</td>
+            <td>${r.country}</td>
+            <td>${r.currency}</td>
+            <td>${this.fmt(r.investedAmount, r.currency)}</td>
+            <td>${this.fmt(r.currentValue, r.currency)}</td>
+            <td class="${r.totalReturn >= 0 ? 'positive' : 'negative'}">${this.fmtPct(r.totalReturn)}</td>
+            <td class="${r.periodReturn >= 0 ? 'positive' : 'negative'}">${this.fmtPct(r.periodReturn)}</td>
+          </tr>
+        `).join('');
+      },
+
+      bindTableSort() {
+        document.querySelectorAll('#detailsTable th').forEach(th => {
+          th.addEventListener('click', () => {
+            const col = th.dataset.sort;
+            if (this.sortColumn === col) this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+            else { this.sortColumn = col; this.sortDir = 'asc'; }
+            document.querySelectorAll('#detailsTable th').forEach(t => t.classList.remove('sorted-asc', 'sorted-desc'));
+            th.classList.add(this.sortDir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+            this.renderDetails(this.selectedPeriod);
+          });
+        });
+      },
+
+      // --- Import ---
+      bindImport() {
+        const zone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        zone.addEventListener('click', () => fileInput.click());
+        zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+        zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+        zone.addEventListener('drop', e => {
+          e.preventDefault();
+          zone.classList.remove('dragover');
+          const files = [...e.dataTransfer.files].filter(f => f.type === 'application/pdf');
+          if (files.length) this.processFiles(files);
+        });
+        fileInput.addEventListener('change', () => {
+          if (fileInput.files.length) this.processFiles([...fileInput.files]);
+          fileInput.value = '';
+        });
+
+        document.getElementById('btnSaveKey').addEventListener('click', () => {
+          const key = document.getElementById('apiKeyInput').value.trim();
+          if (key) {
+            GeminiAPI.setKey(key);
+            document.getElementById('apiKeyStatus').innerHTML = '<span class="positive">Chave salva com sucesso</span>';
+          }
+        });
+
+        document.getElementById('btnConfirmImport').addEventListener('click', () => {
+          if (this.pendingImports.length) {
+            DataStore.addInvestments(this.pendingImports);
+            this.pendingImports = [];
+            this.refreshAll();
+            document.getElementById('importStatus').classList.remove('visible');
+            document.querySelector('[data-tab="overview"]').click();
+          }
+        });
+
+        document.getElementById('btnCancelImport').addEventListener('click', () => {
+          this.pendingImports = [];
+          document.getElementById('importStatus').classList.remove('visible');
+        });
+      },
+
+      renderImportTab() {
+        const key = GeminiAPI.getKey();
+        document.getElementById('apiKeyInput').value = key ? '****' + key.slice(-4) : '';
+        document.getElementById('apiKeyStatus').innerHTML = key
+          ? '<span class="positive">Chave configurada</span>'
+          : '<span style="color:var(--orange)">Nenhuma chave configurada</span>';
+      },
+
+      async processFiles(files) {
+        const statusEl = document.getElementById('importStatus');
+        const titleEl = document.getElementById('importStatusTitle');
+        const resultsEl = document.getElementById('importResults');
+        const actionsEl = document.getElementById('importActions');
+
+        statusEl.classList.add('visible');
+        actionsEl.style.display = 'none';
+        this.pendingImports = [];
+        resultsEl.innerHTML = '';
+
+        for (const file of files) {
+          titleEl.innerHTML = `<div class="spinner"></div> Processando ${file.name}...`;
+          try {
+            const investments = await GeminiAPI.processFile(file);
+            this.pendingImports.push(...investments);
+
+            investments.forEach(inv => {
+              resultsEl.innerHTML += `
+                <div class="import-item">
+                  <div class="import-item-info">
+                    <div class="import-item-name">${inv.name}</div>
+                    <div class="import-item-detail">${inv.institution} | ${inv.assetType} | ${inv.currency}</div>
+                  </div>
+                  <div>
+                    <span style="font-weight:600">${this.fmt(inv.currentValue, inv.currency)}</span>
+                  </div>
+                </div>
+              `;
+            });
+          } catch (err) {
+            resultsEl.innerHTML += `<div class="import-item"><div class="import-item-info"><div class="import-item-name negative">Erro: ${file.name}</div><div class="import-item-detail">${err.message}</div></div></div>`;
+          }
+        }
+
+        if (this.pendingImports.length) {
+          titleEl.innerHTML = `<span class="positive">${this.pendingImports.length} investimento(s) encontrado(s)</span>`;
+          actionsEl.style.display = 'block';
+        } else {
+          titleEl.innerHTML = '<span class="negative">Nenhum investimento extraido</span>';
+        }
+      },
+
+      // --- Manage ---
+      bindManage() {
+        document.getElementById('btnAddManual').addEventListener('click', () => this.openModal());
+        document.getElementById('btnModalCancel').addEventListener('click', () => this.closeModal());
+        document.getElementById('btnModalSave').addEventListener('click', () => this.saveModal());
+        document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) this.closeModal(); });
+
+        document.getElementById('btnExportData').addEventListener('click', () => DataStore.exportJSON());
+
+        document.getElementById('btnImportJson').addEventListener('click', () => document.getElementById('jsonFileInput').click());
+        document.getElementById('jsonFileInput').addEventListener('change', async (e) => {
+          if (e.target.files.length) {
+            try {
+              const count = await DataStore.importJSON(e.target.files[0]);
+              this.refreshAll();
+              alert(`${count} investimentos importados com sucesso!`);
+            } catch (err) { alert('Erro: ' + err); }
+            e.target.value = '';
+          }
+        });
+
+        document.getElementById('btnClearData').addEventListener('click', () => {
+          if (confirm('Tem certeza que deseja remover TODOS os investimentos? Esta acao nao pode ser desfeita.')) {
+            DataStore.clearAll();
+            this.refreshAll();
+          }
+        });
+      },
+
+      renderManageTab() {
+        const list = document.getElementById('manageList');
+        if (!INVESTMENT_DATA.investments.length) {
+          list.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Nenhum investimento cadastrado</div>';
+          return;
+        }
+        list.innerHTML = INVESTMENT_DATA.investments.map(inv => `
+          <div class="manage-item">
+            <div class="manage-item-info">
+              <div class="manage-item-name">${inv.name}</div>
+              <div class="manage-item-detail">${inv.institution} | ${inv.assetType} | ${this.fmt(inv.currentValue, inv.currency)}</div>
+            </div>
+            <div class="manage-actions">
+              <button class="btn btn-sm" onclick="APP.openModal('${inv.id}')">Editar</button>
+              <button class="btn btn-sm btn-danger" onclick="APP.deleteInvestment('${inv.id}')">Remover</button>
+            </div>
+          </div>
+        `).join('');
+      },
+
+      openModal(id) {
+        this.editingId = id || null;
+        document.getElementById('modalTitle').textContent = id ? 'Editar Investimento' : 'Adicionar Investimento';
+
+        if (id) {
+          const inv = INVESTMENT_DATA.investments.find(i => i.id === id);
+          if (!inv) return;
+          document.getElementById('fName').value = inv.name;
+          document.getElementById('fInstitution').value = inv.institution;
+          document.getElementById('fAssetType').value = inv.assetType;
+          document.getElementById('fCountry').value = inv.country;
+          document.getElementById('fCurrency').value = inv.currency;
+          document.getElementById('fInvested').value = inv.investedAmount;
+          document.getElementById('fCurrent').value = inv.currentValue;
+          document.getElementById('fDate').value = inv.purchaseDate || '';
+        } else {
+          document.querySelectorAll('.modal input:not([type=date])').forEach(i => i.value = '');
+          document.getElementById('fDate').value = new Date().toISOString().slice(0, 10);
+        }
+
+        document.getElementById('modalOverlay').classList.add('visible');
+      },
+
+      closeModal() {
+        document.getElementById('modalOverlay').classList.remove('visible');
+        this.editingId = null;
+      },
+
+      saveModal() {
+        const data = {
+          name: document.getElementById('fName').value.trim(),
+          institution: document.getElementById('fInstitution').value,
+          assetType: document.getElementById('fAssetType').value,
+          country: document.getElementById('fCountry').value,
+          currency: document.getElementById('fCurrency').value,
+          investedAmount: parseFloat(document.getElementById('fInvested').value) || 0,
+          currentValue: parseFloat(document.getElementById('fCurrent').value) || 0,
+          purchaseDate: document.getElementById('fDate').value,
+          maturityDate: null,
+          snapshots: [{ date: new Date().toISOString().slice(0, 7), value: parseFloat(document.getElementById('fCurrent').value) || 0 }]
+        };
+
+        if (!data.name || !data.investedAmount) {
+          alert('Preencha pelo menos o nome e o valor investido');
+          return;
+        }
+
+        if (this.editingId) {
+          DataStore.updateInvestment(this.editingId, data);
+        } else {
+          DataStore.addInvestments([data]);
+        }
+
+        this.closeModal();
+        this.refreshAll();
+      },
+
+      deleteInvestment(id) {
+        if (confirm('Remover este investimento?')) {
+          DataStore.removeInvestment(id);
+          this.refreshAll();
+        }
+      },
+
+      refreshAll() {
+        this.renderLastUpdate();
+        this.renderSummaryCards();
+        this.renderActiveTab();
+      },
+
+      // --- Config ---
+      bindConfig() {
+        document.getElementById('btnConfig').addEventListener('click', () => {
+          document.querySelector('[data-tab="import"]').click();
+        });
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js');
+    }
+
+    function showInstallBanner() {
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      const dismissed = localStorage.getItem('install-banner-dismissed');
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      if (isIOS && !isStandalone && !dismissed) document.getElementById('installBanner').classList.add('visible');
+      document.getElementById('dismissInstall').addEventListener('click', () => {
+        document.getElementById('installBanner').classList.remove('visible');
+        localStorage.setItem('install-banner-dismissed', '1');
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      APP.init();
+      showInstallBanner();
+    });
+  </script>
+</body>
+</html>
